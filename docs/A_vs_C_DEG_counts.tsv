@@ -1,0 +1,7 @@
+contrast	dataset	total	mRNA	lncRNA	up	down
+G-AA vs Ctrl	A (14, 2 ctrl)	2014	1425	262	1428	586
+G-AA vs Ctrl	C (17, 5 ctrl)	2038	1453	265	1478	560
+U-AA vs Ctrl	A (14, 2 ctrl)	1277	906	203	1191	86
+U-AA vs Ctrl	C (17, 5 ctrl)	1293	908	199	1214	79
+G-AA vs U-AA	A (14, 2 ctrl)	13	4	3	3	10
+G-AA vs U-AA	C (17, 5 ctrl)	9	2	2	2	7

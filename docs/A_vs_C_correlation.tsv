@@ -1,0 +1,4 @@
+contrast	common_genes	baseMean_r	log2FC_r	log2FC_diff_median
+G-AA vs Ctrl	22121	0.9975	0.9987	0.002
+U-AA vs Ctrl	20477	0.9975	0.9981	0.0029
+G-AA vs U-AA	24539	0.9975	0.9921	0.0037

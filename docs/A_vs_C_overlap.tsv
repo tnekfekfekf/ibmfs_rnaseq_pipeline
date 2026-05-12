@@ -1,0 +1,4 @@
+contrast	A_sig	C_sig	overlap	A_minus_C	C_minus_A	pct_overlap_of_A
+G-AA vs Ctrl	2014	2038	1861	153	177	92.4%
+U-AA vs Ctrl	1277	1293	1216	61	77	95.2%
+G-AA vs U-AA	13	9	7	6	2	53.8%
