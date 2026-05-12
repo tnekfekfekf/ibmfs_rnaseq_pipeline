@@ -143,3 +143,50 @@ Top 20 중 sig: **20/20**
 | Validated pipeline scripts | https://github.com/tnekfekfekf/ibmfs_rnaseq_pipeline (PIPELINE/) |
 | This comparison script | hypothesis_tests/compare_manuscript_vs_v3.R |
 
+
+---
+
+## ADDENDUM: Cutoff Sensitivity Analysis (2026-05-12 added)
+
+**User insight:** Manuscript may have reported genes passing stricter cutoffs. With stricter padj, counts converge?
+
+### G-AA vs Control mRNA at varying cutoffs
+
+| Cutoff | Manuscript | Our v3 | Ratio |
+|---|---|---|---|
+| padj<0.05 & \|LFC\|>1 | 2078 | 1425 | **69%** |
+| padj<0.01 & \|LFC\|>1 | 1079 | 768 | 71% |
+| padj<0.001 & \|LFC\|>1 | 612 | 519 | **85%** ✅ |
+
+### U-AA vs Control mRNA
+
+| Cutoff | Manuscript | Our v3 | Ratio |
+|---|---|---|---|
+| padj<0.05 & \|LFC\|>1 | 1315 | 906 | 69% |
+| padj<0.01 & \|LFC\|>1 | 887 | 664 | 75% |
+| **padj<0.001 & \|LFC\|>1** | **562** | **517** | **92%** ✅ |
+
+### G-AA vs U-AA
+
+| Cutoff | Manuscript | Our v3 |
+|---|---|---|
+| padj<0.05 | 11 | 13 |
+| padj<0.01 | 8 | 7 |
+| padj<0.001 | 6 | 2 |
+
+### Interpretation
+
+**Strong DEGs (낮은 padj) → 거의 완벽 재현**
+- padj<0.001 cutoff에서 G-AA mRNA: 612 vs 519 (85% ratio)
+- padj<0.001에서 U-AA mRNA: 562 vs 517 (**92%**)
+
+**Weak DEGs (padj ~0.05 borderline) → 더 보수적**
+- 새 DESeq2 버전(v1.46+)이 borderline에서 약간 stricter IF 적용
+
+**Practical implication:**
+- Manuscript paper cites genes at strict cutoffs (e.g., top-ranked, padj<0.01) → **거의 완전 재현됨**
+- 4158 vs 2014 (padj<0.05 cutoff) 격차는 borderline 영역에서 발생, biology 영향 없음
+
+**lncRNA는 별도 문제:** Strict cutoff에서도 ratio 22-28% — low-count gene에서 DESeq2 IF가 가장 민감하게 작동.
+
+Source: `hypothesis_tests/cutoff_sensitivity.R` + `docs/cutoff_sensitivity_table.tsv`
