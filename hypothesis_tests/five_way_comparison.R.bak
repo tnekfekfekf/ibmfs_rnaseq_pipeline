@@ -1,0 +1,227 @@
+#!/usr/bin/env Rscript
+# 5-way comparison:
+#  1) Manuscript published values (from paper)
+#  2) Manuscript count matrix + 14 samples + DESeq2 (~group)
+#  3) v3 count matrix + 14 samples + DESeq2 (~group)
+#  4) Manuscript 14 counts + Child v3 (~cohort + group), 17 samples
+#  5) v3 17 samples + DESeq2 (~cohort + group)
+suppressPackageStartupMessages({library(DESeq2); library(dplyr); library(readr); library(tibble)})
+
+MS_MATRIX <- "/Volumes/ExtremeSSD/ibmfs/MANUSCRIPT_COUNTS/manuscript_count_matrix_19samples.txt"
+V3_14_MATRIX <- "/Users/jaeeunyoo/Desktop/star_workdir/counts/fc_manuscript_v3.txt"
+V3_17_MATRIX <- "/Users/jaeeunyoo/Desktop/star_workdir/counts/fc_v3_17samples.txt"
+CHILD_V3_DIR <- "/Users/jaeeunyoo/Desktop/star_workdir/counts/per_sample_v3"
+GTF <- "/Users/jaeeunyoo/Desktop/star_workdir/gencode.v44.annotation.no_rRNA.gtf"
+OUT <- "/Volumes/ExtremeSSD/ibmfs/MANUSCRIPT_COUNTS/five_way_comparison"
+dir.create(OUT, showWarnings=FALSE, recursive=TRUE)
+
+# Gene annotation
+gtf_lines <- readLines(GTF); gene_lines <- gtf_lines[grepl("\tgene\t", gtf_lines)]
+parsed <- regmatches(gene_lines, regexec(
+  'gene_id "([^"]+)".*?gene_type "([^"]+)".*?gene_name "([^"]+)"', gene_lines))
+gt <- do.call(rbind, lapply(parsed, function(x) if(length(x)==4)
+  data.frame(gene_id=x[2], gene_type=x[3], gene_name=x[4]) else NULL))
+gt <- gt %>% distinct(gene_id, .keep_all=TRUE); gt$gene_id <- as.character(gt$gene_id)
+
+samps_14 <- c("AA-RNA-FA","AA-RNA-DKC","AA-RNA-FA2","AA-RNA-FA3","AA-PRO","AA-KEW",
+              "AA-RNA-1","AA-RNA-4","AA-RNA-5","AA-RNA-13","AA-RNA-16","AA-RNA-18",
+              "AA-HMH","AA-PJH")
+meta_14 <- data.frame(
+  group=factor(c(rep("G-AA",4),rep("Control",2),rep("U-AA",8)),
+               levels=c("Control","U-AA","G-AA")),
+  row.names = samps_14
+)
+samps_17 <- c(samps_14, "Child1","Child2","Child3")
+meta_17 <- data.frame(
+  group=factor(c(rep("G-AA",4),rep("Control",2),rep("U-AA",8),rep("Control",3)),
+               levels=c("Control","U-AA","G-AA")),
+  cohort=factor(c(rep("internal",14),rep("public",3)),
+                levels=c("internal","public")),
+  row.names = samps_17
+)
+
+run_deseq <- function(counts, meta, design, lib_size_note="") {
+  counts <- counts[rowSums(counts) > 0, ]
+  cat(sprintf("  Genes: %d, samples: %d %s\n", nrow(counts), ncol(counts), lib_size_note))
+  dds <- DESeqDataSetFromMatrix(counts, meta, design=design)
+  dds <- DESeq(dds, parallel=FALSE)
+  out <- list()
+  for (cc in list(c("G-AA","Control"), c("U-AA","Control"), c("G-AA","U-AA"))) {
+    res <- results(dds, contrast=c("group", cc[1], cc[2]))
+    df <- as.data.frame(res) %>% rownames_to_column("gene_id")
+    df$gene_name <- gt$gene_name[match(df$gene_id, gt$gene_id)]
+    df$gene_type <- gt$gene_type[match(df$gene_id, gt$gene_id)]
+    df <- df %>% filter(!is.na(padj))
+    out[[paste(cc, collapse="_vs_")]] <- df
+  }
+  out
+}
+
+is_sig <- function(d, padj=0.05, lfc=1) !is.na(d$padj) & d$padj<padj & abs(d$log2FoldChange)>lfc
+
+# ========== Run all 4 DESeq2 analyses (analysis 1 = manuscript published, no code needed) ==========
+
+# (2) Manuscript count matrix, 14 samples, ~group
+cat("\n[2] Manuscript count matrix + 14 samples + ~group...\n")
+ms <- read_tsv(MS_MATRIX, show_col_types=FALSE)
+ms14 <- as.matrix(ms[, samps_14]); rownames(ms14) <- ms$EnsemblID
+storage.mode(ms14) <- "integer"
+res_2 <- run_deseq(ms14, meta_14, ~group, "(MS counts)")
+
+# (3) v3 count matrix, 14 samples, ~group
+cat("\n[3] v3 count matrix + 14 samples + ~group...\n")
+v3_14_raw <- read_tsv(V3_14_MATRIX, comment="#", show_col_types=FALSE)
+v3_14 <- as.matrix(v3_14_raw[, samps_14])
+rownames(v3_14) <- v3_14_raw$Geneid
+storage.mode(v3_14) <- "integer"
+res_3 <- run_deseq(v3_14, meta_14, ~group, "(v3 counts)")
+
+# (4) Hybrid: MS 14 counts + Child v3 counts, ~cohort+group
+cat("\n[4] MS counts (14) + Child v3 counts (3), batch-aware ~cohort+group...\n")
+common_genes_4 <- intersect(rownames(ms14), rownames(v3_14_raw$Geneid))
+ms14_common <- ms14
+# Load Child v3 counts
+child_list <- list()
+for (s in c("Child1","Child2","Child3")) {
+  d <- read_tsv(file.path(CHILD_V3_DIR, paste0(s, ".counts.txt")), comment="#", show_col_types=FALSE)
+  child_list[[s]] <- setNames(d[[7]], d$Geneid)
+}
+common_genes <- Reduce(intersect, c(list(rownames(ms14)), lapply(child_list, names)))
+ms14_c <- ms14[common_genes, ]
+child_mat <- do.call(cbind, lapply(child_list, function(x) x[common_genes]))
+colnames(child_mat) <- c("Child1","Child2","Child3")
+counts_hybrid <- cbind(ms14_c, child_mat)
+storage.mode(counts_hybrid) <- "integer"
+res_4 <- run_deseq(counts_hybrid, meta_17, ~cohort + group, "(hybrid)")
+
+# (5) v3 17 samples, ~cohort+group
+cat("\n[5] v3 17 samples + ~cohort+group...\n")
+v3_17_raw <- read_tsv(V3_17_MATRIX, comment="#", show_col_types=FALSE)
+v3_17 <- as.matrix(v3_17_raw[, samps_17])
+rownames(v3_17) <- v3_17_raw$Geneid
+storage.mode(v3_17) <- "integer"
+res_5 <- run_deseq(v3_17, meta_17, ~cohort + group, "(v3 17)")
+
+# ========== Build comprehensive table ==========
+cat("\n\n================================================================\n")
+cat("  5-WAY DEG COUNT COMPARISON\n")
+cat("================================================================\n")
+
+# (1) Manuscript paper values (from text/sTable 2/3/4)
+paper_values <- list(
+  `G-AA_vs_Control` = list(mRNA=2078, lncRNA=1167, total=NA),
+  `U-AA_vs_Control` = list(mRNA=1315, lncRNA=992, total=NA),
+  `G-AA_vs_U-AA`    = list(mRNA=4,    lncRNA=4,   total=NA)
+)
+
+summarize_deg <- function(d) {
+  s <- is_sig(d)
+  list(
+    total = sum(s),
+    mRNA = sum(s & d$gene_type=="protein_coding"),
+    lncRNA = sum(s & d$gene_type=="lncRNA"),
+    up = sum(s & d$log2FoldChange > 0),
+    down = sum(s & d$log2FoldChange < 0)
+  )
+}
+
+tab <- data.frame()
+for (cc_str in c("G-AA_vs_Control","U-AA_vs_Control","G-AA_vs_U-AA")) {
+  pv <- paper_values[[cc_str]]
+  s2 <- summarize_deg(res_2[[cc_str]])
+  s3 <- summarize_deg(res_3[[cc_str]])
+  s4 <- summarize_deg(res_4[[cc_str]])
+  s5 <- summarize_deg(res_5[[cc_str]])
+  tab <- rbind(tab, data.frame(
+    Contrast=gsub("_vs_"," vs ", cc_str),
+    Metric="mRNA",
+    `1_Paper`=pv$mRNA,
+    `2_MS_DESeq`=s2$mRNA,
+    `3_v3_14`=s3$mRNA,
+    `4_Hybrid`=s4$mRNA,
+    `5_v3_17`=s5$mRNA,
+    check.names=FALSE
+  ))
+  tab <- rbind(tab, data.frame(
+    Contrast=gsub("_vs_"," vs ", cc_str),
+    Metric="lncRNA",
+    `1_Paper`=pv$lncRNA,
+    `2_MS_DESeq`=s2$lncRNA,
+    `3_v3_14`=s3$lncRNA,
+    `4_Hybrid`=s4$lncRNA,
+    `5_v3_17`=s5$lncRNA,
+    check.names=FALSE
+  ))
+}
+print(tab, row.names=FALSE)
+write_tsv(tab, file.path(OUT, "table1_deg_counts.tsv"))
+
+# Total/up/down also
+cat("\n=== Total + Up/Down counts ===\n")
+tab2 <- data.frame()
+for (cc_str in c("G-AA_vs_Control","U-AA_vs_Control","G-AA_vs_U-AA")) {
+  for (analysis in c("2_MS_DESeq","3_v3_14","4_Hybrid","5_v3_17")) {
+    res_dict <- list(`2_MS_DESeq`=res_2, `3_v3_14`=res_3, `4_Hybrid`=res_4, `5_v3_17`=res_5)
+    s <- summarize_deg(res_dict[[analysis]][[cc_str]])
+    tab2 <- rbind(tab2, data.frame(
+      Contrast=gsub("_vs_"," vs ", cc_str),
+      Analysis=analysis,
+      Total=s$total, mRNA=s$mRNA, lncRNA=s$lncRNA, Up=s$up, Down=s$down
+    ))
+  }
+}
+print(tab2, row.names=FALSE)
+write_tsv(tab2, file.path(OUT, "table2_total_updown.tsv"))
+
+# Key gene comparison
+cat("\n=== Key manuscript-highlighted genes (G-AA vs Control) ===\n")
+key_genes <- c("HCG11","HCP5","SNHG32","PSMB8-AS1","FAM30A","MIR22HG",
+               "ATP1A1-AS1","USP3-AS1","TAGAP-AS1","LINC01036","MALAT1",
+               "TEN1-CDK3","FANCA")
+key_tab <- data.frame(Gene=key_genes)
+for (analysis in c("2_MS_DESeq","3_v3_14","4_Hybrid","5_v3_17")) {
+  res_dict <- list(`2_MS_DESeq`=res_2, `3_v3_14`=res_3, `4_Hybrid`=res_4, `5_v3_17`=res_5)
+  d <- res_dict[[analysis]][["G-AA_vs_Control"]]
+  lfcs <- c(); padjs <- c(); sigs <- c()
+  for (sym in key_genes) {
+    gid <- gt$gene_id[gt$gene_name == sym][1]
+    if (is.na(gid) || !gid %in% d$gene_id) {
+      lfcs <- c(lfcs, NA); padjs <- c(padjs, NA); sigs <- c(sigs, "?")
+    } else {
+      r <- d[d$gene_id == gid, ]
+      lfcs <- c(lfcs, round(r$log2FoldChange, 2))
+      padjs <- c(padjs, signif(r$padj, 3))
+      sigs <- c(sigs, ifelse(is_sig(r), "sig", "n.s."))
+    }
+  }
+  key_tab[[paste0(analysis, "_LFC")]] <- lfcs
+  key_tab[[paste0(analysis, "_sig")]] <- sigs
+}
+# Also add paper values from manuscript published DEG file
+ms_paper <- read_tsv("/Volumes/ExtremeSSD/ibmfs/03_original_analysis/deg_results/G-AA_vs_Control_results.txt",
+                     show_col_types=FALSE)
+paper_lfcs <- c()
+paper_sigs <- c()
+for (sym in key_genes) {
+  r <- ms_paper[ms_paper$GeneSymbol == sym, ][1, ]
+  if (nrow(r) == 0 || is.na(r$padj)) {
+    paper_lfcs <- c(paper_lfcs, NA); paper_sigs <- c(paper_sigs, "?")
+  } else {
+    paper_lfcs <- c(paper_lfcs, round(r$log2FoldChange, 2))
+    s <- !is.na(r$padj) && r$padj<0.05 && abs(r$log2FoldChange)>1
+    paper_sigs <- c(paper_sigs, ifelse(s, "sig", "n.s."))
+  }
+}
+key_tab[["1_Paper_LFC"]] <- paper_lfcs
+key_tab[["1_Paper_sig"]] <- paper_sigs
+# Reorder columns
+key_tab <- key_tab[, c("Gene",
+                       "1_Paper_LFC","1_Paper_sig",
+                       "2_MS_DESeq_LFC","2_MS_DESeq_sig",
+                       "3_v3_14_LFC","3_v3_14_sig",
+                       "4_Hybrid_LFC","4_Hybrid_sig",
+                       "5_v3_17_LFC","5_v3_17_sig")]
+print(key_tab, row.names=FALSE)
+write_tsv(key_tab, file.path(OUT, "table3_key_genes.tsv"))
+
+cat(sprintf("\nAll tables saved to: %s\n", OUT))
