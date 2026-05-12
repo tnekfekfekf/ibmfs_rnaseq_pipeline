@@ -1,0 +1,35 @@
+# Data files (lives on ExtremeSSD)
+*.bam
+*.bam.bai
+*.fastq.gz
+*.fastq
+*.gtf
+*.gtf.gz
+*.fa
+*.fa.gz
+counts/
+local_bams/
+per_sample/
+per_sample_*/
+
+# R / Python intermediate
+*.rds
+*.RData
+.Rhistory
+.RData
+.Ruserdata
+__pycache__/
+*.pyc
+
+# OS / editor
+.DS_Store
+._*
+*.swp
+.idea/
+.vscode/
+*.log
+
+# Output dirs
+deseq2_*/
+plots/
+figures/
