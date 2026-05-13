@@ -1,7 +1,10 @@
 cohort	strategy	contrast	genes_kept	n_lncRNA_DE	n_up	n_down
-17-sample	ORIG	gBMF_vs_Ctrl	8478	26	21	5
-17-sample	ORIG	uBMF_vs_Ctrl	8478	12	11	1
-17-sample	ORIG	gBMF_vs_uBMF	8478	0	0	0
+17-sample	ORIG	gBMF_vs_Ctrl	38424	1171	1119	52
+17-sample	ORIG	uBMF_vs_Ctrl	38424	1034	1029	5
+17-sample	ORIG	gBMF_vs_uBMF	38424	7	0	7
+17-sample	STRICT	gBMF_vs_Ctrl	8478	26	21	5
+17-sample	STRICT	uBMF_vs_Ctrl	8478	12	11	1
+17-sample	STRICT	gBMF_vs_uBMF	8478	0	0	0
 17-sample	R1	gBMF_vs_Ctrl	18805	973	934	39
 17-sample	R1	uBMF_vs_Ctrl	18805	851	850	1
 17-sample	R1	gBMF_vs_uBMF	18805	0	0	0

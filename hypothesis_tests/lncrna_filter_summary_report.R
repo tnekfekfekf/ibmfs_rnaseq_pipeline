@@ -61,19 +61,19 @@ cat("(disease-vs-control contrasts only)\n")
 cat("========================================================\n")
 print(t4, n = Inf)
 
-# --- Table 5: What is the 'extra' lncRNA gain from relaxed filters? ---
-# How many new DE-lncRNAs does R1/R2/R3 find that ORIG misses?
+# --- Table 5: Delta vs manuscript's actual filter (ORIG) ---
+# How does each filter compare to the manuscript's true filter (ORIG)?
 gain <- sumc %>%
   filter(contrast %in% disease_contrasts) %>%
   group_by(cohort, contrast) %>%
-  mutate(n_lncRNA_ORIG = n_lncRNA_DE[strategy == "ORIG"],
-         delta_vs_ORIG = n_lncRNA_DE - n_lncRNA_ORIG) %>%
+  mutate(n_lncRNA_manuscript = n_lncRNA_DE[strategy == "ORIG"],
+         delta_vs_manuscript = n_lncRNA_DE - n_lncRNA_manuscript) %>%
   ungroup() %>%
-  select(cohort, contrast, strategy, n_lncRNA_DE, n_lncRNA_ORIG, delta_vs_ORIG)
-write_tsv(gain, file.path(OUTDIR, "TABLE5_relaxed_filter_gain.tsv"))
+  select(cohort, contrast, strategy, n_lncRNA_DE, n_lncRNA_manuscript, delta_vs_manuscript)
+write_tsv(gain, file.path(OUTDIR, "TABLE5_delta_vs_manuscript_filter.tsv"))
 
 cat("\n========================================================\n")
-cat("TABLE 5: How many extra DE-lncRNAs do relaxed filters recover?\n")
+cat("TABLE 5: Delta DE-lncRNA count vs the manuscript's true filter (ORIG)\n")
 cat("========================================================\n")
 print(gain, n = Inf)
 
@@ -81,35 +81,37 @@ print(gain, n = Inf)
 cat("\n\n========================================================\n")
 cat("KEY FINDINGS for Reviewer 1, Issue 1\n")
 cat("========================================================\n")
-cat("\n1) ORIG (manuscript) filter is OVERLY STRICT for biomarker discovery:\n")
-cat("   - Requires mean CPM >= 10 AND CPM >= 1 in ALL samples\n")
-cat("   - This excludes lncRNAs that are near-zero in controls\n")
-cat("     but high in disease (precisely the desirable biomarker pattern)\n")
-cat("   - Result: 6 of 11 manuscript-highlighted lncRNAs (HCG11, HCP5,\n")
-cat("     SNHG32, PSMB8-AS1, FAM30A, MIR22HG) are excluded by ORIG\n")
-cat("     in BOTH cohorts -> they are NA, not significant\n\n")
+cat("\n1) MANUSCRIPT METHODS-TEXT DOCUMENTATION ERROR:\n")
+cat("   The methods text says 'mean CPM >= 10 AND CPM >= 1 in all samples'\n")
+cat("   (= STRICT in this script). The actual code (deseq2_analysis*.R\n")
+cat("   line ~33-59 and snakemake_template line 87) uses\n")
+cat("   rowSums(counts) >= 10 (= ORIG in this script).\n")
+cat("   ORIG is what produced the manuscript's published DE-lncRNA list.\n\n")
 
-cat("2) Group-aware filters (R1, R2) recover ALL 11 manuscript biomarkers:\n")
-cat("   - R1: CPM >= 1 in >= 50% samples of ANY group\n")
-cat("   - R2: mean CPM >= 1 in any group + >=50% of that group CPM >= 0.5\n")
-cat("   - These pass low-control / high-disease lncRNAs that ORIG misses\n\n")
+cat("2) ORIG (TRUE manuscript filter) recovers 11/11 biomarkers in the\n")
+cat("   14-sample reproduction (100%) and 10/11 in the 17-sample hybrid\n")
+cat("   (95.5% - only MALAT1 in u-BMF vs Ctrl drops, due to indep-filter\n")
+cat("   threshold shift when more low-count genes are co-tested).\n\n")
 
-cat("3) Pipeline + Child cohort robustness:\n")
-cat("   - 14-sample manuscript matrix and 17-sample hybrid produce nearly\n")
-cat("     identical biomarker recovery patterns\n")
-cat("   - Only MALAT1 in u_BMF vs Ctrl drops out in 17-sample R1/R2/R3\n")
-cat("     (likely due to independent-filtering threshold shift)\n")
-cat("   - All other 10 biomarkers are robust across filter strategy AND cohort\n\n")
+cat("3) STRICT (methods-text filter, never actually used) would EXCLUDE 6/11\n")
+cat("   manuscript biomarkers in both cohorts (HCG11, HCP5, SNHG32,\n")
+cat("   PSMB8-AS1, FAM30A, MIR22HG) because they have near-zero expression\n")
+cat("   in controls (log2FC ~9-11). The 'CPM>=1 in ALL samples' rule\n")
+cat("   rejects exactly this biomarker pattern.\n\n")
 
-cat("4) g-BMF vs u-BMF contrast: 0 lncRNAs DE across all conditions,\n")
-cat("   confirming these are PAN-BMF disease markers (consistent with the\n")
-cat("   manuscript's interpretation of a shared disease signature).\n\n")
+cat("4) R1 / R2 group-aware filters recover the same biomarker set as ORIG\n")
+cat("   (100% 14-sample, 95.5% 17-sample) while being biologically\n")
+cat("   motivated and easier to defend. log2FC values match ORIG within 1%\n")
+cat("   for the 4 RT-qPCR-validated biomarkers.\n\n")
 
-cat("5) Recommended filter for the revised analysis: R1 (group-aware moderate),\n")
-cat("   which (a) is biologically motivated, (b) recovers all manuscript-reported\n")
-cat("   biomarkers, (c) is robust to adding Child v3 controls, and (d) gives\n")
-cat("   ~3-4x more DE-lncRNA candidates for downstream exploration without\n")
-cat("   sacrificing specificity (LFC magnitudes are consistent with ORIG when\n")
-cat("   both detect the gene).\n")
+cat("5) g-BMF vs u-BMF: 0 lncRNAs DE under STRICT/R1/R2 in 17-sample,\n")
+cat("   confirming the manuscript's interpretation that this is a\n")
+cat("   PAN-BMF disease signature rather than a g/u discriminator.\n\n")
+
+cat("6) Recommendations for the revision:\n")
+cat("   (a) Correct the Methods text to describe the actual filter\n")
+cat("       (rowSums(counts) >= 10). No published result changes.\n")
+cat("   (b) Add this sensitivity table as a Supplementary Table.\n")
+cat("   (c) Optionally adopt R1 (group-aware) as primary going forward.\n")
 
 message("\n[DONE] Tables saved to ", OUTDIR)

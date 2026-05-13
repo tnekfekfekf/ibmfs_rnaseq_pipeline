@@ -57,10 +57,20 @@ storage.mode(mat) <- "integer"
 message(sprintf("  matrix: %d genes x %d samples", nrow(mat), ncol(mat)))
 
 # ---------- 4 filter strategies ----------
+# ORIG  : the ACTUAL filter used in the manuscript DESeq2 script
+#         (deseq2_analysis*.R: dds <- dds[rowSums(counts(dds)) >= 10, ])
+# STRICT: the CPM-based filter as DESCRIBED in the manuscript methods text
+#         (mean CPM >= 10 AND CPM >= 1 in all samples)  -- now in R1bis below
+# R1/R2 : group-aware alternatives (biologically motivated)
+# R3    : no pre-filter (DESeq2 IF only)
 apply_filter <- function(counts, group_vec, strategy) {
   cpm_mat <- edgeR::cpm(counts)
   groups  <- unique(group_vec)
   if (strategy == "ORIG") {
+    # Manuscript's actual DESeq2 pre-filter
+    keep <- rowSums(counts) >= 10
+  } else if (strategy == "STRICT") {
+    # Manuscript's methods-text description (mean CPM>=10 AND CPM>=1 in all)
     keep <- (rowMeans(cpm_mat) >= 10) & (rowSums(cpm_mat >= 1) == ncol(cpm_mat))
   } else if (strategy == "R1") {
     pass_any <- rep(FALSE, nrow(cpm_mat))
@@ -130,7 +140,7 @@ contrasts_14 <- list(
   gBMF_vs_uBMF = c("group","g_BMF","u_BMF")
 )
 
-strategies <- c("ORIG","R1","R2","R3")
+strategies <- c("ORIG","STRICT","R1","R2","R3")
 
 summary14 <- list()
 de_results_14 <- list()
@@ -281,8 +291,9 @@ for (cohort_lbl in c("14-sample","17-sample")) {
     n_pass <- rowSums(member)
     robust_sets[[length(robust_sets)+1]] <- tibble(
       cohort = cohort_lbl, contrast = nm, gene = all_genes,
-      pass_ORIG = member[,"ORIG"], pass_R1 = member[,"R1"],
-      pass_R2 = member[,"R2"], pass_R3 = member[,"R3"],
+      pass_ORIG   = member[,"ORIG"],   pass_STRICT = member[,"STRICT"],
+      pass_R1     = member[,"R1"],     pass_R2     = member[,"R2"],
+      pass_R3     = member[,"R3"],
       n_strategies = n_pass
     )
   }
@@ -290,18 +301,18 @@ for (cohort_lbl in c("14-sample","17-sample")) {
 rob_df <- bind_rows(robust_sets)
 write_tsv(rob_df, file.path(OUTDIR, "robust_lncRNAs_per_contrast.tsv"))
 
-# Genes passing all 4 strategies in any contrast
-rob_all4 <- rob_df %>% filter(n_strategies == 4) %>% arrange(cohort, contrast, gene)
-write_tsv(rob_all4, file.path(OUTDIR, "robust_lncRNAs_intersection_all4.tsv"))
-message(sprintf("  Genes passing all 4 strategies (any contrast, any cohort): %d unique",
-                length(unique(rob_all4$gene))))
+# Genes passing all 5 strategies in any contrast
+rob_allK <- rob_df %>% filter(n_strategies == length(strategies)) %>% arrange(cohort, contrast, gene)
+write_tsv(rob_allK, file.path(OUTDIR, "robust_lncRNAs_intersection_all_strategies.tsv"))
+message(sprintf("  Genes passing all %d strategies (any contrast, any cohort): %d unique",
+                length(strategies), length(unique(rob_allK$gene))))
 
-# Ultra-robust: passes all 4 strategies AND found in both cohort runs
-ultra <- rob_all4 %>% group_by(gene, contrast) %>%
+# Ultra-robust: passes all strategies AND found in both cohort runs
+ultra <- rob_allK %>% group_by(gene, contrast) %>%
   summarise(n_cohorts = n_distinct(cohort), .groups = "drop") %>%
   filter(n_cohorts == 2)
 write_tsv(ultra, file.path(OUTDIR, "ultra_robust_lncRNAs.tsv"))
-message(sprintf("  Ultra-robust (all 4 strategies + both cohorts): %d gene-contrast pairs",
+message(sprintf("  Ultra-robust (all strategies + both cohorts): %d gene-contrast pairs",
                 nrow(ultra)))
 
 # =====================================================================

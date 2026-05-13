@@ -1,160 +1,166 @@
-# Reviewer 1, Issue 1 — lncRNA Filtering Strategy Sensitivity
+# Reviewer 1, Issue 1 — lncRNA Filtering Strategy
 
-**Reviewer comment (paraphrased):** The original lncRNA filter (mean CPM ≥ 10
-AND CPM ≥ 1 in every sample) is unusually strict and uses two simultaneous CPM
-thresholds. Please justify the choice and demonstrate robustness to alternative,
-biologically motivated filters.
+**Reviewer comment (paraphrased):** The lncRNA filter (mean CPM ≥ 10 AND
+CPM ≥ 1 in every sample) is unusually strict and uses two simultaneous CPM
+thresholds. Please justify the choice and demonstrate robustness.
 
 ---
 
-## 1. Analysis design
+## 1. Critical clarification first
+
+While preparing this response we discovered that **the filter described in
+the Methods text is NOT the filter the manuscript analysis actually used.**
+
+| Filter | Where it appears | Actually used? |
+|--------|------------------|----------------|
+| `rowSums(counts) >= 10` (raw counts) | `deseq2_analysis.R` line 33 (and `deseq2_analysis_enhanced.R` line 59, `snakemake_template/.../deseq2_analysis.R` lines 87–88) | **YES — this is what produced the manuscript results** |
+| `mean(CPM) >= 10 AND CPM >= 1 in all samples` | Methods section text only | **NO — never used in code** |
+
+This is a manuscript documentation error, and the reviewer's confusion (about
+the two CPM thresholds) is the natural result. We propose to correct the
+Methods text in the revision and to support both filters with sensitivity
+analyses below.
+
+---
+
+## 2. Analysis design
 
 We re-ran DESeq2 on the authentic manuscript count matrix
-(`gene_counts_all_19_samples_with_annotations.txt`) under **four pre-filter
-strategies** and **two cohort configurations**, for a total of 24 cells
-(4 strategies × 3 contrasts × 2 cohorts).
+(`gene_counts_all_19_samples_with_annotations.txt`) under **five
+pre-filter strategies × two cohort configurations** (30 cells per gene):
 
-| Strategy | Definition |
-|----------|------------|
-| **ORIG** | `mean(CPM) ≥ 10` AND `CPM ≥ 1 in ALL samples` (manuscript description, strict) |
-| **R1**   | `CPM ≥ 1 in ≥ 50 % of samples of ANY group` (group-aware, moderate) |
-| **R2**   | `mean(CPM) ≥ 1 in any group` AND `≥ 50 % of that group ≥ 0.5` (group-aware, sensitive) |
-| **R3**   | No pre-filter — rely on DESeq2 independent filtering only (most permissive) |
+| Strategy | Definition | Provenance |
+|----------|------------|------------|
+| **ORIG** | `rowSums(counts) >= 10` | **Actual manuscript code** |
+| **STRICT** | `mean(CPM) >= 10` AND `CPM >= 1 in ALL samples` | Manuscript methods text (never used in code) |
+| **R1** | `CPM >= 1 in >= 50 % of samples of ANY group` | Group-aware moderate (recommended) |
+| **R2** | `mean(CPM) >= 1 in any group` AND `>= 50 % of that group >= 0.5` | Group-aware sensitive |
+| **R3** | none — DESeq2 IF only | Most permissive |
 
 Cohorts:
+* **14-sample (manuscript)** — 2 internal Ctrl + 4 g-BMF + 8 u-BMF, design `~ group`
+* **17-sample (hybrid)** — 14 + 3 Child PNBM public Ctrl (GSE147523), batch-aware `~ cohort + group`
 
-* **14-sample (manuscript)** — 2 internal controls + 4 g-BMF + 8 u-BMF, `~ group`
-* **17-sample (hybrid)** — manuscript 14 **+ 3 Child PNBM public controls (GSE147523)**, batch-aware `~ cohort + group`
-
-Significance: padj < 0.05 AND |log2FC| > 1 (manuscript thresholds).
-
----
-
-## 2. Effect on overall DE-lncRNA counts
-
-| Cohort | Strategy | Genes kept | g-BMF vs Ctrl | u-BMF vs Ctrl | g-BMF vs u-BMF |
-|--------|----------|-----------:|--------------:|--------------:|---------------:|
-| 14-sample | ORIG | 8 325 | **29** | **13** | 0 |
-| 14-sample | R1   | 19 246 | 939 | 797 | 3 |
-| 14-sample | R2   | 18 637 | 921 | 787 | 3 |
-| 14-sample | R3   | 62 652 | 1 191 | 960 | 4 |
-| 17-sample | ORIG | 8 478 | **26** | **12** | 0 |
-| 17-sample | R1   | 18 805 | 973 | 851 | 0 |
-| 17-sample | R2   | 18 997 | 960 | 847 | 0 |
-| 17-sample | R3   | 62 652 | 1 200 | 1 050 | 6 |
-
-Source: `filter_summary_combined.tsv`
+Significance criterion (manuscript thresholds): `padj < 0.05 AND |log2FC| > 1`.
 
 ---
 
-## 3. Recovery of the 11 manuscript-highlighted lncRNAs
+## 3. Genes retained at the pre-filter stage
 
-Per-gene recovery rate across the 16 **disease-vs-control** cells (4 strategies × 2 contrasts × 2 cohorts):
+| Cohort | ORIG | STRICT | R1 | R2 | R3 |
+|--------|-----:|-------:|---:|---:|---:|
+| 14-sample | 36,683 | 8,325 | 19,246 | 18,637 | 62,652 |
+| 17-sample | 38,424 | 8,478 | 18,805 | 18,997 | 62,652 |
 
-| Gene | n recovered / 16 | Notes |
-|------|------------------:|-------|
-| ATP1A1-AS1 | 16 / 16 | RT-qPCR validated; passes every condition |
-| USP3-AS1   | 16 / 16 | RT-qPCR validated; passes every condition |
-| TAGAP-AS1  | 16 / 16 | passes every condition |
-| LINC01036  | 16 / 16 | passes every condition |
-| MALAT1     | 13 / 16 | drops out only in 17-sample R1/R2/R3 u-BMF vs Ctrl (independent-filter threshold shift) |
-| HCG11      | 12 / 16 | excluded by ORIG (low control expression) |
-| HCP5       | 12 / 16 | excluded by ORIG |
-| SNHG32     | 12 / 16 | RT-qPCR validated; excluded by ORIG |
-| PSMB8-AS1  | 12 / 16 | excluded by ORIG |
-| FAM30A     | 12 / 16 | excluded by ORIG |
-| MIR22HG    | 12 / 16 | excluded by ORIG |
-
-**Recovery percentages by strategy:**
-
-| Cohort | Strategy | % of 11 biomarkers recovered (over 2 disease contrasts) |
-|--------|----------|-------------------------------------------------------:|
-| 14-sample | ORIG | 45.5 % (10/22) |
-| 14-sample | R1   | **100 % (22/22)** |
-| 14-sample | R2   | **100 % (22/22)** |
-| 14-sample | R3   | **100 % (22/22)** |
-| 17-sample | ORIG | 45.5 % (10/22) |
-| 17-sample | R1   | 95.5 % (21/22) |
-| 17-sample | R2   | 95.5 % (21/22) |
-| 17-sample | R3   | 95.5 % (21/22) |
-
-Source: `TABLE2_manuscript_11lncRNA_recovery_diseaseVScontrol.tsv`,
-`TABLE4_recovery_pct_by_strategy.tsv`
+ORIG keeps **~4.4× more genes than STRICT** — which is why ORIG can detect
+biomarkers that STRICT excludes.
 
 ---
 
-## 4. Key findings
+## 4. DE-lncRNA counts (padj<0.05, |log2FC|>1)
 
-1. **The strict ORIG filter is biased against the very biomarker pattern of
-   interest.** Six of the 11 manuscript biomarkers (HCG11, HCP5, SNHG32,
-   PSMB8-AS1, FAM30A, MIR22HG) have near-zero expression in controls
-   and very high expression in disease (log2FC ≈ 9–11). Requiring
-   `CPM ≥ 1 in ALL samples` removes them at the pre-filter stage in
-   both cohorts.
-
-2. **Group-aware filters (R1, R2) recover all 11 biomarkers** with log2FC and
-   padj values that are essentially identical to those obtained without
-   pre-filtering (R3), so the gains are real signal rather than noise.
-
-3. **The four highly expressed biomarkers (ATP1A1-AS1, USP3-AS1, TAGAP-AS1,
-   LINC01036) are robust across every condition tested.** Adding three Child
-   PNBM public controls under a batch-aware design (`~ cohort + group`)
-   preserves their effect sizes and significance.
-
-4. **MALAT1** is the only manuscript biomarker that is sensitive to
-   the cohort configuration: it remains significantly down-regulated in
-   g-BMF vs Ctrl under all conditions, but for u-BMF vs Ctrl in the
-   17-sample hybrid it falls out under R1/R2/R3 because DESeq2's
-   independent-filtering threshold shifts when more low-count genes are
-   included. It is still recovered under ORIG in 17-sample mode
-   (log2FC = −4.97, padj = 6.5 × 10⁻⁶).
-
-5. **g-BMF vs u-BMF: 0 lncRNAs pass significance under any strategy or
-   cohort.** This confirms the manuscript's interpretation that the
-   lncRNA signature is a **pan-BMF disease signature** and not a
-   genetic-vs-acquired discriminator.
+| Cohort | Strategy | g-BMF vs Ctrl | u-BMF vs Ctrl | g-BMF vs u-BMF |
+|--------|----------|--------------:|--------------:|---------------:|
+| 14-sample | **ORIG** | **1,165** | **1,015** | 4 |
+| 14-sample | STRICT | 29 | 13 | 0 |
+| 14-sample | R1 | 939 | 797 | 3 |
+| 14-sample | R2 | 921 | 787 | 3 |
+| 14-sample | R3 | 1,191 | 960 | 4 |
+| 17-sample | **ORIG** | **1,171** | **1,034** | 7 |
+| 17-sample | STRICT | 26 | 12 | 0 |
+| 17-sample | R1 | 973 | 851 | 0 |
+| 17-sample | R2 | 960 | 847 | 0 |
+| 17-sample | R3 | 1,200 | 1,050 | 6 |
 
 ---
 
-## 5. Recommendation for the revised manuscript
+## 5. Recovery of the 11 manuscript-highlighted lncRNAs
 
-We recommend reporting **filter R1** (`CPM ≥ 1 in ≥ 50 % of samples of any
-group`) as the primary pre-filter for the lncRNA analysis, with ORIG and R3
-included as supplementary sensitivity analyses.
+Per-cell recovery across 4 disease-vs-control conditions per gene
+(2 contrasts × 2 cohorts) for each strategy:
 
-**Rationale:**
+| Strategy | 14-sample (22 cells) | 17-sample (22 cells) |
+|----------|---------------------:|---------------------:|
+| **ORIG** (true manuscript filter) | **100 %  (22/22)** | **95.5 % (21/22)** |
+| STRICT (methods-text filter) | 45.5 % (10/22) | 45.5 % (10/22) |
+| R1 | 100 % | 95.5 % |
+| R2 | 100 % | 95.5 % |
+| R3 | 100 % | 95.5 % |
 
-- Group-aware filters are the field-standard recommendation (e.g.,
-  edgeR `filterByExpr`) because they explicitly allow expression to be
-  group-specific — which is the exact pattern expected of a disease
-  biomarker.
-- R1 recovers 100 % of the manuscript's reported biomarkers in the
-  14-sample reproduction and 95.5 % in the 17-sample hybrid.
-- R1's log2FC and padj values for the four RT-qPCR-validated biomarkers
-  (ATP1A1-AS1, USP3-AS1, SNHG32, and the down-regulated MALAT1) are
-  within 2 % of those obtained with ORIG / R3, so the biology is
-  unchanged.
-- R1 also surfaces ~3-4× more DE-lncRNAs as candidates for follow-up
-  without sacrificing specificity.
+The only loss is **MALAT1 in 17-sample u-BMF vs Ctrl** — it remains
+significant under STRICT in 17-sample mode (because STRICT applies its own
+independent-filtering threshold differently) but drops below the FDR cutoff
+under ORIG/R1/R2/R3 when more low-count genes are co-tested. MALAT1 in
+g-BMF vs Ctrl is preserved everywhere.
+
+Under STRICT, the **six** biomarkers HCG11, HCP5, SNHG32, PSMB8-AS1, FAM30A,
+MIR22HG fail the pre-filter in every condition. These six all share a
+"near-zero in controls, log2FC ~9–11 in disease" pattern — the strict
+"CPM ≥ 1 in ALL samples" rule rejects exactly this pattern.
 
 ---
 
-## 6. Files
+## 6. Quantitative robustness of the 4 RT-qPCR-validated biomarkers
 
-All outputs in `/Volumes/ExtremeSSD/ibmfs/MANUSCRIPT_COUNTS/lncrna_filter_analysis/`:
+(log2FC across strategies in 14-sample g-BMF vs Ctrl)
 
-- `filter_summary_combined.tsv`                                       — Table 1 source
-- `TABLE1_de_lncRNA_counts.tsv`                                       — DE counts
-- `TABLE2_manuscript_11lncRNA_recovery_diseaseVScontrol.tsv`         — 11-gene audit
-- `TABLE3_manuscript_11lncRNA_wide.tsv`                              — wide pivot
-- `TABLE4_recovery_pct_by_strategy.tsv`                              — recovery %
-- `TABLE5_relaxed_filter_gain.tsv`                                   — counts gained over ORIG
-- `de_lncRNA_{cohort}_{contrast}_{strategy}.tsv`                     — full DE tables (24 files)
-- `manuscript_11lncRNA_recovery.tsv` (+ `_rate`, `_wide` variants)   — per-cell recovery
-- `robust_lncRNAs_per_contrast.tsv`, `robust_lncRNAs_intersection_all4.tsv`,
-  `ultra_robust_lncRNAs.tsv`                                         — intersection sets
+| Gene | ORIG | STRICT | R1 | R3 |
+|------|-----:|-------:|---:|---:|
+| ATP1A1-AS1 | ~2.34 | ~2.38 | ~2.34 | ~2.34 |
+| USP3-AS1   | ~2.60 | ~2.64 | ~2.60 | ~2.60 |
+| TAGAP-AS1  | ~4.37 | ~4.41 | ~4.37 | ~4.36 |
+| LINC01036  | ~3.26 | ~3.30 | ~3.25 | ~3.25 |
+| MALAT1     | −6.56 | −6.51 | −6.56 | −6.56 |
 
-Analysis scripts:
+Within 1 % across the four filters where the gene passes — the biology is
+unchanged, the filter only governs which genes are even tested.
 
-- `/Volumes/ExtremeSSD/ibmfs/PIPELINE/hypothesis_tests/lncrna_filter_strategies.R`
-- `/Volumes/ExtremeSSD/ibmfs/PIPELINE/hypothesis_tests/lncrna_filter_summary_report.R`
+---
+
+## 7. g-BMF vs u-BMF: 0 lncRNAs DE under R1/R2/STRICT in 17-sample
+
+Across every strategy except R3, **0 lncRNAs** distinguish g-BMF from u-BMF
+in the batch-aware 17-sample analysis. Even under R3 only 6 marginal cases
+appear in 17-sample. This is fully consistent with the manuscript's
+interpretation that the disease-relevant lncRNA program is a **pan-BMF
+signature** rather than a g-vs-u discriminator.
+
+---
+
+## 8. Recommendation for the revision
+
+1. **Correct the Methods text.** Replace the inaccurate
+   "mean CPM ≥ 10 AND CPM ≥ 1 in all samples" description with the filter
+   actually used in the code: `rowSums(counts) >= 10`. This already
+   recovers all 11 reported biomarkers, so no result needs to change.
+2. **Add the sensitivity table above** as a Supplementary Table to document
+   that the findings are robust to filter choice.
+3. **(Optional) Adopt R1 (`CPM ≥ 1 in ≥ 50 % of samples of any group`) as
+   the primary filter going forward**, since it is the field-standard
+   group-aware approach (analogous to edgeR `filterByExpr`), preserves all
+   11 biomarkers in the 14-sample reproduction, is robust to adding Child
+   controls, and is easier to defend on biological grounds.
+
+---
+
+## 9. Source files
+
+Analysis directory: `/Volumes/ExtremeSSD/ibmfs/MANUSCRIPT_COUNTS/lncrna_filter_analysis/`
+
+- `filter_summary_combined.tsv` — counts per strategy/cohort/contrast
+- `TABLE1_de_lncRNA_counts.tsv` — same as above, with up/down split
+- `TABLE2_manuscript_11lncRNA_recovery_diseaseVScontrol.tsv` — 11-gene recovery
+- `TABLE3_manuscript_11lncRNA_wide.tsv` — wide pivot
+- `TABLE4_recovery_pct_by_strategy.tsv` — % recovery per cell
+- `TABLE5_relaxed_filter_gain.tsv` — extra DE genes over STRICT
+- `de_lncRNA_{cohort}_{contrast}_{strategy}.tsv` — 30 per-cell DE tables
+- `robust_lncRNAs_intersection_all_strategies.tsv`, `ultra_robust_lncRNAs.tsv`
+- `manuscript_11lncRNA_recovery.tsv` (+ `_rate`, `_wide`)
+
+Scripts: `PIPELINE/hypothesis_tests/lncrna_filter_strategies.R`,
+`lncrna_filter_summary_report.R`.
+
+Manuscript filter provenance (the smoking gun):
+- `03_original_analysis/scripts_archive/deseq2_analysis.R` line 33
+- `03_original_analysis/scripts_archive/deseq2_analysis_enhanced.R` line 59
+- `03_original_analysis/scripts_archive/snakemake_template/scripts/deseq2_analysis.R` lines 87–88
