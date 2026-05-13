@@ -1,0 +1,16 @@
+scenario	contrast	n_DE_total	n_PC	PC_up	PC_dn	n_lncRNA	lncRNA_up	lncRNA_dn
+Manuscript published	gBMF_vs_Ctrl	NA	2078	1501	577	1169	NA	NA
+Manuscript published	uBMF_vs_Ctrl	NA	1315	1201	114	994	NA	NA
+Manuscript published	gBMF_vs_uBMF	NA	4	NA	NA	NA	NA	NA
+14-sample ~group (manuscript reproduction)	gBMF_vs_Ctrl	4265	2213	1551	662	1165	1109	56
+14-sample ~group (manuscript reproduction)	uBMF_vs_Ctrl	3073	1382	1247	135	1015	1007	8
+14-sample ~group (manuscript reproduction)	gBMF_vs_uBMF	11	4	1	3	4	0	4
+14-sample + RUV (~W_1 + group)	gBMF_vs_Ctrl	4143	2293	1551	742	1066	1019	47
+14-sample + RUV (~W_1 + group)	uBMF_vs_Ctrl	2458	1216	1130	86	776	775	1
+14-sample + RUV (~W_1 + group)	gBMF_vs_uBMF	21	6	1	5	10	0	10
+17-sample (~cohort + group)	gBMF_vs_Ctrl	4158	2071	1499	572	1171	1119	52
+17-sample (~cohort + group)	uBMF_vs_Ctrl	3091	1358	1249	109	1034	1029	5
+17-sample (~cohort + group)	gBMF_vs_uBMF	19	5	1	4	7	0	7
+17-sample + RUV (~W_1 + cohort + group)	gBMF_vs_Ctrl	5078	2720	1687	1033	1311	1208	103
+17-sample + RUV (~W_1 + cohort + group)	uBMF_vs_Ctrl	2996	1292	1208	84	1041	1000	41
+17-sample + RUV (~W_1 + cohort + group)	gBMF_vs_uBMF	182	57	22	35	63	41	22
