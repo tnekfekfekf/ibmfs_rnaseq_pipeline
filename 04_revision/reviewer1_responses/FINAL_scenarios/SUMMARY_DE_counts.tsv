@@ -1,0 +1,10 @@
+cohort	contrast	n_DE	n_lncRNA	n_pc
+14sample_site_group	gBMF_vs_Ctrl	20	1	17
+14sample_site_group	uBMF_vs_Ctrl	34	2	29
+14sample_site_group	gBMF_vs_uBMF	0	0	0
+17sample_site_group	gBMF_vs_Ctrl	16	1	14
+17sample_site_group	uBMF_vs_Ctrl	22	1	19
+17sample_site_group	gBMF_vs_uBMF	2	0	2
+14sample_group_only	gBMF_vs_Ctrl	3719	947	2110
+14sample_group_only	uBMF_vs_Ctrl	2651	830	1313
+14sample_group_only	gBMF_vs_uBMF	8	3	3
